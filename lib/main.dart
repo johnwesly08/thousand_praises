@@ -36,7 +36,7 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
   bool _isLoading = true;
 
   // Settings
-  double _fontSize = 22.0;
+  double _fontSize = 15.0;
   bool _isDarkMode = false;
   double _lineSpacing = 1.8;
   bool _showSettings = false;
@@ -321,12 +321,13 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
             child: RichText(
               textAlign: TextAlign.justify,
               text: TextSpan(
-              style: GoogleFonts.notoSerifTamil(
-                fontSize: _fontSize,
-                height: _lineSpacing,
-                color: textColor,
-                fontWeight: FontWeight.w400,
-              ),
+                text: _praises[index]['praise'] ?? 'Praise Missing',
+                style: GoogleFonts.notoSerifTamil(
+                  fontSize: _fontSize,
+                  height: _lineSpacing,
+                  color: textColor,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
             ),
           ),
