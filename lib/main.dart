@@ -606,8 +606,8 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
             children: [
               // Number circle
               Container(
-                width: 30,
-                height: 30,
+                width: 35,
+                height: 35,
                 decoration: BoxDecoration(
                   color: accentColor.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
@@ -617,8 +617,7 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
                   child: Text(
                     '${index + 1}',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                       color: accentColor,
                     ),
                   ),
@@ -628,7 +627,7 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
               // Reference badge
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5.2),
                   decoration: BoxDecoration(
                     color: accentColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
