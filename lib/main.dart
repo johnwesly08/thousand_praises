@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:thousand_praises/praise_storage.dart';
+import 'scroll_reading_screen.dart';
 
 const bool devMode = true;
 
@@ -44,6 +45,8 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
   double _lineSpacing = 1.8;
   bool _showSettings = false;
   bool _isLoading = true;
+  int _lastReadIndex = 0;
+  int? _expandedGroup = 0;
 
   final ScrollController _scrollController = ScrollController();
   late AnimationController _settingsAnimController;
@@ -74,9 +77,230 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
     super.dispose();
   }
 
+  void _openReader(int index) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ScrollReaderScreen(
+          praises: _praises,
+          startIndex: index,
+          isDarkMode: _isDarkMode,
+          fontSize: _fontSize,
+          lineSpacing: _lineSpacing,
+          onPraiseAdded: loadPraises,
+        ),
+      ),
+    );
+  }
+
+  void _openGroupBrowser() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) {
+        return Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: borderColor),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.view_list, color: accentColor),
+                      Text(
+                        "Browse Groups",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  //List
+                  SizedBox(
+                    height: 300,
+                    child: ListView.builder(
+                      itemCount: (_praises.length / 100).ceil(),
+                      itemBuilder: (context,index) {
+                        int start = index * 100 + 1;
+                        int end = (start + 99).clamp(1, _praises.length);
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: ListTile(
+                            title: Text(
+                              "$start - $end",
+                              style: TextStyle(color: textColor),
+                            ),
+                            trailing: Icon(Icons.arrow_forward_ios, size: 16, color: accentColor),
+                            onTap: () {
+                              Navigator.pop(context);
+                              _openReader(start - 1);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _jumpToPraise() {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+              Row(
+                children: [
+                  Icon(Icons.pin, color: accentColor),
+                  const SizedBox(width: 10),
+                  Text(
+                    "Go to Praise",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: textColor),
+                decoration: InputDecoration(
+                  hintText: "Enter number",
+                  hintStyle: TextStyle(color: textColor.withValues(alpha: 0.5)),
+                  filled: true,
+                  fillColor: _isDarkMode
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.black.withValues(alpha: 0.02),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () {
+                    int? value = int.tryParse(controller.text);
+
+                    if (value != null &&
+                        value > 0 &&
+                        value <= _praises.length) {
+                      Navigator.pop(context);
+                      _openReader(value - 1);
+                    }
+                  },
+                  child: const Text("Go"),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _continueReadingCard() {
+    if (_lastReadIndex <= 0) return const SizedBox();
+
+    return _menuCard(
+      title: "Continue Reading (${_lastReadIndex + 1})",
+      icon: Icons.history,
+      onTap: () {
+        _openReader(_lastReadIndex);
+      },
+    );
+  }
+
+  Widget _menuCard({
+    required String title,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: accentColor),
+            const SizedBox(width: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+            const Spacer(),
+            Icon(Icons.arrow_forward_ios, size: 16, color: accentColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+
   static const String _themePrefKey = 'isDarkMode';
   static const String _fontSizePrefKey = 'fontSize';
   static const String _lineSpacingPrefKey = 'lineSpacing';
+  static const String _lastReadKey = 'lastReadIndex';
 
   Future<void> _loadThemePreference() async {
     final prefs = await SharedPreferences.getInstance();
@@ -84,6 +308,7 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
       _isDarkMode = prefs.getBool(_themePrefKey) ?? false;
       _fontSize = prefs.getDouble(_fontSizePrefKey) ?? 17.0;
       _lineSpacing = prefs.getDouble(_lineSpacingPrefKey) ?? 1.5;
+      _lastReadIndex = prefs.getInt(_lastReadKey) ?? 0;
     });
   }
 
@@ -106,7 +331,27 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
       setState(() {
         _praises = [...base, ...user];
         _isLoading = false;
+        _expandedGroup = (_lastReadIndex ~/ 100);
       });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_lastReadIndex > 0 && _lastReadIndex < _praises.length) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ScrollReaderScreen(
+                praises: _praises,
+                startIndex: _lastReadIndex,
+                isDarkMode: _isDarkMode,
+                fontSize: _fontSize,
+                lineSpacing: _lineSpacing,
+                onPraiseAdded: loadPraises,
+              ),
+            ),
+          );
+        }
+      });
+
     } catch (e) {
       // Fallback to sample data if file not found
       setState(() {
@@ -134,319 +379,7 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
     }
   }
 
-  void _openAddPraiseSheet() {
-    final referenceController = TextEditingController();
-    final praiseController = TextEditingController();
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: borderColor, width: 1),
-          ),
-          child: SingleChildScrollView(
-            child: SafeArea(
-              top: false,
-              left: false,
-              right: false,
-            child: Padding(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Header with icon
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: accentColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: accentColor.withValues(alpha: 0.3)),
-                        ),
-                        child: Icon(
-                          Icons.add_circle_outline,
-                          color: accentColor,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'புதிய துதி சேர்க்க',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: textColor,
-                              ),
-                            ),
-                            Text(
-                              'Add New Praise',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: textColor.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.close, color: textColor),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-                  // Reference field
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.bookmark_border, color: accentColor, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            'குறிப்பு / Reference',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: referenceController,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: textColor,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'e.g., துதி 101',
-                          hintStyle: TextStyle(
-                            color: textColor.withValues(alpha: 0.4),
-                          ),
-                          filled: true,
-                          fillColor: _isDarkMode
-                              ? Colors.white.withValues(alpha: 0.05)
-                              : Colors.black.withValues(alpha: 0.02),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderColor),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: accentColor, width: 2),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Praise text field
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.edit_note, color: accentColor, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            'துதி உரை / Praise Text',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: praiseController,
-                        maxLines: 6,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: textColor,
-                          height: 1.8,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'உங்கள் துதியை இங்கே எழுதுங்கள்...',
-                          hintStyle: TextStyle(
-                            color: textColor.withValues(alpha: 0.4),
-                          ),
-                          filled: true,
-                          fillColor: _isDarkMode
-                              ? Colors.white.withValues(alpha: 0.05)
-                              : Colors.black.withValues(alpha: 0.02),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderColor),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: accentColor, width: 2),
-                          ),
-                          contentPadding: const EdgeInsets.all(16),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Save button
-                  ElevatedButton(
-                    onPressed: () async {
-                      final ref = referenceController.text.trim();
-                      final praise = praiseController.text.trim();
-
-                      if (ref.isEmpty || praise.isEmpty) {
-                        _showModernToast(context, 'Please fill all fields', isError: true);
-                        return;
-                      }
-
-                      await addUserPraise(
-                        reference: ref,
-                        praise: praise,
-                      );
-
-                      await loadPraises();
-
-                      Navigator.pop(context);
-                      _showModernToast(context, 'Praise saved successfully!');
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.check_circle_outline, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'சேமிக்க / Save Praise',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showModernToast(BuildContext context, String message, {bool isError = false}) {
-    final overlay = Overlay.of(context);
-    final overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        bottom: MediaQuery.of(context).padding.bottom + 80, // Changed from top to bottom
-        left: 16,
-        right: 16,
-        child: Material(
-          color: Colors.transparent,
-          child: TweenAnimationBuilder(
-            duration: const Duration(milliseconds: 300),
-            tween: Tween<double>(begin: 0, end: 1),
-            builder: (context, double value, child) {
-              return Transform.translate(
-                offset: Offset(0, 20 * (1 - value)), // Changed animation direction
-                child: Opacity(opacity: value, child: child),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: isError ? Colors.red.shade50 : Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isError ? Colors.red.shade200 : Colors.green.shade200,
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isError ? Colors.red.shade100 : Colors.green.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isError ? Icons.error_outline : Icons.check_circle_outline,
-                      color: isError ? Colors.red.shade700 : Colors.green.shade700,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      message,
-                      style: TextStyle(
-                        color: isError ? Colors.red.shade900 : Colors.green.shade900,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    overlay.insert(overlayEntry);
-    Future.delayed(const Duration(seconds: 3), () {
-      overlayEntry.remove();
-    });
-  }
 
   Color get bgColor => _isDarkMode ? const Color(0xFF0D1117) : const Color(0xFFFDF6E3);
   Color get textColor => _isDarkMode ? const Color(0xFFE6EDF3) : const Color(0xFF2C2416);
@@ -467,16 +400,7 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
       child: Scaffold(
       backgroundColor: bgColor,
 
-      floatingActionButton: devMode
-          ? FloatingActionButton(
-              backgroundColor: accentColor,
-              foregroundColor: textColor,
-              onPressed: _openAddPraiseSheet,
-              child: const Icon(Icons.add),
-            )
-          : null,
-
-      body: Stack(
+        body: Stack(
         children: [
           Positioned.fill(
             child: Container(
@@ -489,18 +413,32 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
               children: [
                 // Custom app bar
                 _buildAppBar(),
-
+                // _buildContinueReadingBanner(),
                 // Scrollable content
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                    itemCount: _praises.length,
-                    itemBuilder: (context, index) {
-                      return RepaintBoundary(
-                        child: _buildPraiseCard(_praises[index], index),
-                      );
-                    },
+                  child:  ListView(
+                    padding: const EdgeInsets.fromLTRB(20,10,20,20),
+                    children: [
+                    _continueReadingCard(),
+                    const SizedBox(height: 10),
+                    _menuCard(
+                      title: "Start Reading",
+                      icon: Icons.menu_book,
+                      onTap: () {
+                        _openReader(0);
+                      },
+                    ),
+                    _menuCard(
+                      title: "Browse by Groups",
+                      icon: Icons.view_list,
+                      onTap: _openGroupBrowser,
+                    ),
+                    _menuCard(
+                      title: "Jump to Number",
+                      icon: Icons.pin,
+                      onTap: _jumpToPraise,
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -584,83 +522,6 @@ class _PraiseReaderScreenState extends State<PraiseReaderScreen> with TickerProv
                 }
               },
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPraiseCard(dynamic praise, int index) {
-    return Container(
-      margin: const EdgeInsets.only(bottom:16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Number badge and reference
-          Row(
-            children: [
-              // Number circle
-              Container(
-                width: 35,
-                height: 35,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: accentColor.withValues(alpha: 0.3), width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    '${index + 1}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: accentColor,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Reference badge
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5.2),
-                  decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: accentColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    praise['reference'],
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: accentColor,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Praise text
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
-              _praises[index]['praise'] ?? 'Praise Missing',
-              textAlign: TextAlign.left,
-                style: TextStyle(
-                  fontSize: _fontSize,
-                  height: _lineSpacing,
-                  color: textColor,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-          const SizedBox(height: 1),
         ],
       ),
     );
