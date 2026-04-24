@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:thousand_praises/praise_storage.dart';
+import 'package:thousand_praises/core/ui/settings_bottom_sheet.dart';
+import 'package:thousand_praises/core/services/praise_storage.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
-
-import 'main.dart';
+import 'package:thousand_praises/core/theme/app_colors.dart';
 
 class ScrollReaderScreen extends StatefulWidget {
   final List praises;
   final int startIndex;
   final bool isDarkMode;
-  final double fontSize;
-  final double lineSpacing;
+  final double? fontSize;
+  final double? lineSpacing;
   final VoidCallback onPraiseAdded;
 
   const ScrollReaderScreen({
@@ -28,40 +28,40 @@ class ScrollReaderScreen extends StatefulWidget {
 }
 
 class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
-
+  DateTime _lastSavedTime = DateTime.now();
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionListener = ItemPositionsListener.create();
   static const String lastReadKey = "lastReadIndex";
+  static const bool devMode = true;
+  bool _isDarkMode = false;
+  double _fontSize = 17.0;
+  double _lineSpacing = 1.5;
 
-  Color get bgColor => widget.isDarkMode
-      ? const Color(0xFF0D1117)
-      : const Color(0xFFFDF6E3);
-
-  Color get textColor => widget.isDarkMode
-      ? const Color(0xFFE6EDF3)
-      : const Color(0xFF2C2416);
-
-  Color get accentColor => widget.isDarkMode
-      ? const Color(0xFFFFB74D)
-      : const Color(0xFFD97706);
-
-  Color get cardColor => widget.isDarkMode
-      ? const Color(0xFF161B22)
-      : const Color(0xFFFFFBF0);
-
-  Color get borderColor => widget.isDarkMode
-      ? const Color(0xFF30363D)
-      : const Color(0xFFE5D5B7);
+  Color get bgColor => AppColors.bg(_isDarkMode);
+  Color get textColor => AppColors.text(_isDarkMode);
+  Color get cardColor => AppColors.card(_isDarkMode);
+  Color get borderColor => AppColors.border(_isDarkMode);
+  Color get accentColor => AppColors.accent(_isDarkMode);
 
   @override
   void initState() {
     super.initState();
+
+    _isDarkMode = widget.isDarkMode;
+    _fontSize = widget.fontSize ?? 17.0;
+    _lineSpacing = widget.lineSpacing ?? 1.5;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _itemScrollController.jumpTo(index: widget.startIndex);
     });
 
     _itemPositionListener.itemPositions.addListener(_saveReadingPosition);
+  }
+
+  @override
+  void dispose() {
+    _saveReadingPosition();
+    super.dispose();
   }
 
   void _scrollToBottom() {
@@ -78,8 +78,9 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      elevation: 8,
+      backgroundColor: Colors.black.withValues(alpha: 0.2),
+      isScrollControlled: false,
       builder: (context) {
         return Container(
           decoration: BoxDecoration(
@@ -386,20 +387,27 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
     });
   }
 
-
   Future<void> _saveReadingPosition() async {
+    final now = DateTime.now();
+
+    if (now.difference(_lastSavedTime).inMilliseconds < 500) return;
+    _lastSavedTime = now;
+
     final positions = _itemPositionListener.itemPositions.value;
 
-    if (positions.isNotEmpty) {
-      final minIndex = positions
-          .where((pos) => pos.itemLeadingEdge >= 0)
-          .map((pos) => pos.index)
-          .reduce((a,b) => a < b ? a : b);
+    if (positions.isEmpty) return;
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt(lastReadKey, minIndex);
-    }
+    final visibleItems = positions.toList()
+      ..sort((a, b) => a.itemLeadingEdge.compareTo(b.itemLeadingEdge));
+
+    final firstVisible = visibleItems.first;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(lastReadKey, firstVisible.index);
+
+    print("Saved index: ${firstVisible.index}"); // 🔥 DEBUG
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -411,6 +419,54 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
         backgroundColor: bgColor,
         foregroundColor: textColor,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.tune, color: textColor),
+            onPressed: () {
+              showSettingsBottomSheet(
+                context: context,
+                isDarkMode: _isDarkMode,
+                fontSize: _fontSize,
+                lineSpacing: _lineSpacing,
+
+                showFontSize: true,        // 🔥 FULL SETTINGS HERE
+                showLineSpacing: true,
+
+                onThemeChanged: (value) async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool("isDarkMode", value);
+                  setState(() => _isDarkMode = value);
+                },
+
+                onFontChanged: (value) async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setDouble("fontSize", value);
+                  setState(() => _fontSize = value);
+                },
+
+                onSpacingChanged: (value) async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setDouble("lineSpacing", value);
+                  setState(() => _lineSpacing = value);
+                },
+
+                onReset: () async {
+                  final prefs = await SharedPreferences.getInstance();
+
+                  await prefs.setBool("isDarkMode", false);
+                  await prefs.setDouble("fontSize", 17.0);
+                  await prefs.setDouble("lineSpacing", 1.5);
+
+                  setState(() {
+                    _isDarkMode = false;
+                    _fontSize = 17.0;
+                    _lineSpacing = 1.5;
+                  });
+                },
+              );
+            },
+          ),
+        ],
       ),
 
       floatingActionButton: devMode
@@ -435,20 +491,24 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
         ],
       ) : null,
 
-      body: ScrollablePositionedList.builder(
-        itemScrollController: _itemScrollController,
-        itemPositionsListener: _itemPositionListener,
-        padding: const EdgeInsets.all(20),
-        physics: const BouncingScrollPhysics(),
-        itemCount: widget.praises.length,
-        itemBuilder: (context, index) {
+      body: Stack(
+        children: [
 
-          final praise = widget.praises[index];
-
-          return RepaintBoundary(
-            child: _buildPraiseCard(praise, index),
-          );
-        },
+          /// MAIN LIST
+          ScrollablePositionedList.builder(
+            itemScrollController: _itemScrollController,
+            itemPositionsListener: _itemPositionListener,
+            padding: const EdgeInsets.all(20),
+            physics: const BouncingScrollPhysics(),
+            itemCount: widget.praises.length,
+            itemBuilder: (context, index) {
+              final praise = widget.praises[index];
+              return RepaintBoundary(
+                child: _buildPraiseCard(praise, index),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -512,8 +572,8 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
             child: Text(
               praise['praise'] ?? 'Praise Missing',
               style: TextStyle(
-                fontSize: widget.fontSize,
-                height: widget.lineSpacing,
+                fontSize: _fontSize,
+                height: _lineSpacing,
                 color: textColor,
               ),
             ),
