@@ -18,12 +18,13 @@ android {
         versionName = "1.0.0"
     }
 
-    buildTypes {
-        getByName("release") {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
-        }
+buildTypes {
+    getByName("release") {
+        isMinifyEnabled = false
+        isShrinkResources = false   // 🔥 ADD THIS LINE
+        signingConfig = signingConfigs.getByName("debug")
     }
+}
 }
 
 
