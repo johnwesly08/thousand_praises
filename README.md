@@ -1,6 +1,6 @@
 # ஆயிரம் துதிகள் — Thousand Praises
 
-A Tamil Christian praise & hymn reader built with Flutter.  
+A Tamil Christian praise reader built with Flutter.  
 Browse, read, and personalise 1 000+ Tamil praises on Android, iOS, and the web.
 
 ---
@@ -18,12 +18,6 @@ Browse, read, and personalise 1 000+ Tamil praises on Android, iOS, and the web.
 | 🌗 **Dark / Light mode** | Switch themes; preference is remembered across sessions |
 | 🔤 **Font size & line spacing** | Adjust reading comfort in the reader screen |
 | 🖋️ **Tamil font** | Ships with *Noto Serif Tamil* for clear, consistent text |
-
----
-
-## Screenshots
-
-> *(Add screenshots here)*
 
 ---
 
