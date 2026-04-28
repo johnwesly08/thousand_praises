@@ -1,9 +1,18 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:thousand_praises/core/ui/settings_bottom_sheet.dart';
 import 'package:thousand_praises/core/services/praise_storage.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:thousand_praises/core/theme/app_colors.dart';
+
+List<Map<String, dynamic>> parsePraises(String jsonStr) {
+  final data = json.decode(jsonStr);
+  return List<Map<String, dynamic>>.from(data);
+}
 
 class ScrollReaderScreen extends StatefulWidget {
   final List praises;
@@ -28,6 +37,7 @@ class ScrollReaderScreen extends StatefulWidget {
 }
 
 class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
+  List _praises = [];
   DateTime _lastSavedTime = DateTime.now();
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionListener = ItemPositionsListener.create();
@@ -46,6 +56,8 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
   @override
   void initState() {
     super.initState();
+
+    _praises = List.from(widget.praises);
 
     _isDarkMode = widget.isDarkMode;
     _fontSize = widget.fontSize ?? 17.0;
@@ -66,10 +78,21 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
 
   void _scrollToBottom() {
     _itemScrollController.scrollTo(
-      index: widget.praises.length - 1,
+      index: _praises.length - 1,
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeOut,
     );
+  }
+
+  Future<void> _reloadPraises() async {
+    final baseJson = await rootBundle.loadString('assets/praises.json');
+    final base = await compute(parsePraises, baseJson);
+
+    final user = await loadUserPraises();
+
+    setState(() {
+      _praises = [...base, ...user];
+    });
   }
 
   void _openAddPraiseSheet() {
@@ -78,9 +101,9 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       elevation: 8,
       backgroundColor: Colors.black.withValues(alpha: 0.2),
-      isScrollControlled: false,
       builder: (context) {
         return Container(
           decoration: BoxDecoration(
@@ -173,6 +196,7 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
                         const SizedBox(height: 8),
                         TextField(
                           controller: referenceController,
+                          cursorColor: accentColor,
                           style: TextStyle(
                             fontSize: 16,
                             color: textColor,
@@ -230,6 +254,7 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
                         const SizedBox(height: 8),
                         TextField(
                           controller: praiseController,
+                          cursorColor: accentColor,
                           maxLines: 6,
                           style: TextStyle(
                             fontSize: 16,
@@ -281,6 +306,11 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
                           praise: praise,
                         );
 
+                        await _reloadPraises();
+
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _scrollToBottom();
+                        });
                         widget.onPraiseAdded();
 
                         Navigator.pop(context);
@@ -411,11 +441,21 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Container(
+      color: bgColor,
+        child: Scaffold(
       backgroundColor: bgColor,
 
       appBar: AppBar(
-        title: const Text("1000 ஸ்தோத்திரங்கள்"),
+        titleSpacing: 0,
+        title: Text(
+          "1000 ஸ்தோத்திரங்கள்",
+          style: TextStyle(
+            fontFamily: 'NotoSerifTamil',
+            fontSize: 19,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         backgroundColor: bgColor,
         foregroundColor: textColor,
         elevation: 0,
@@ -500,9 +540,9 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
             itemPositionsListener: _itemPositionListener,
             padding: const EdgeInsets.all(20),
             physics: const BouncingScrollPhysics(),
-            itemCount: widget.praises.length,
+            itemCount: _praises.length,
             itemBuilder: (context, index) {
-              final praise = widget.praises[index];
+              final praise = _praises[index];
               return RepaintBoundary(
                 child: _buildPraiseCard(praise, index),
               );
@@ -510,6 +550,7 @@ class _ScrollReaderScreenState extends State<ScrollReaderScreen> {
           ),
         ],
       ),
+        ),
     );
   }
 

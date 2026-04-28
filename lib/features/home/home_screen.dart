@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:thousand_praises/core/ui/settings_bottom_sheet.dart';
 import '../reader/scroll_reading_screen.dart';
@@ -8,6 +9,10 @@ import '../../core/services/praise_storage.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:thousand_praises/core/services/settings_service.dart';
 
+List<Map<String, dynamic>> parsePraises(String jsonStr) {
+  final data = json.decode(jsonStr);
+  return List<Map<String, dynamic>>.from(data);
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -37,14 +42,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _loadPreferences();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     loadPraises();
+    });
   }
 
   void _openReader(int index) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ScrollReaderScreen(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 250),
+        reverseTransitionDuration: const Duration(milliseconds: 200),
+
+        pageBuilder: (_, __, ___) => ScrollReaderScreen(
           praises: _praises,
           startIndex: index,
           isDarkMode: _isDarkMode,
@@ -52,8 +62,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           lineSpacing: _lineSpacing,
           onPraiseAdded: loadPraises,
         ),
+
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: child,
+          );
+        },
       ),
     ).then((_) {
+      // 🔥 reload settings + last read when coming back
       _loadPreferences();
     });
   }
@@ -79,9 +97,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.view_list, color: accentColor),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: accentColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.view_list, color: accentColor, size: 20),
+                      ),
+
+                      const SizedBox(width: 12),
+
                       Text(
-                        "Browse Groups",
+                        "குழுக்களாக பார்க்க",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -153,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Icon(Icons.pin, color: accentColor),
                   const SizedBox(width: 10),
                   Text(
-                    "Go to Praise",
+                    "துதிக்குச் செல்ல",
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -168,17 +196,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               TextField(
                 controller: controller,
                 keyboardType: TextInputType.number,
+
+                cursorColor: accentColor, // 🔥 cursor
+
                 style: TextStyle(color: textColor),
+
                 decoration: InputDecoration(
-                  hintText: "Enter number",
-                  hintStyle: TextStyle(color: textColor.withValues(alpha: 0.5)),
+                  hintText: "எண்ணை உள்ளிடவும்",
+                  hintStyle: TextStyle(
+                    color: textColor.withValues(alpha: 0.5),
+                  ),
+
                   filled: true,
                   fillColor: _isDarkMode
                       ? Colors.white.withValues(alpha: 0.05)
                       : Colors.black.withValues(alpha: 0.02),
+
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: borderColor),
+                  ),
+
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: accentColor, // 🔥 focus border
+                      width: 2,
+                    ),
                   ),
                 ),
               ),
@@ -205,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       _openReader(value - 1);
                     }
                   },
-                  child: const Text("Go"),
+                  child: const Text("செல்"),
                 ),
               ),
             ],
@@ -219,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (_lastReadIndex <= 0) return const SizedBox();
 
     return _menuCard(
-      title: "Continue Reading (${_lastReadIndex + 1})",
+      title: "தொடர்ந்து படிக்க (${_lastReadIndex + 1})",
       icon: Icons.history,
       onTap: () {
         _openReader(_lastReadIndex);
@@ -281,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       // Load Base Praises
       final baseJson = await rootBundle.loadString('assets/praises.json');
-      final base = List<Map<String, dynamic>>.from(json.decode(baseJson));
+      final base = await compute(parsePraises, baseJson);
 
       // Load user-added praises
       final user = await loadUserPraises();
@@ -319,8 +368,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         children: [
           Icon(Icons.auto_stories, color: accentColor, size: 28),
           const SizedBox(width: 16),
-          Expanded(
-            child: Column(
+          Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -340,7 +388,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ],
             ),
-          ),
+
+          const Spacer(),
 
           IconButton(
             icon: Icon(Icons.tune, color: textColor),
@@ -394,14 +443,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
+      return Container(
+        color: bgColor,
+        child: Scaffold(
         backgroundColor: bgColor,
         body: Center(
           child: CircularProgressIndicator(color: accentColor),
         ),
+        ),
       );
     }
-    return PopScope(
+    return Container(
+        color:bgColor,
+        child: PopScope(
       onPopInvokedWithResult: (didPop,result) {
       },
       child: Scaffold(
@@ -422,26 +476,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   // Scrollable content
                   Expanded(
                     child:  ListView(
-                      padding: const EdgeInsets.fromLTRB(20,10,20,20),
+                      padding: const EdgeInsets.fromLTRB(20,16,20,20),
                       children: [
                         if (_lastReadIndex > 0) ...[
                         _continueReadingCard(),
-                        const SizedBox(height: 10),
                       ],
                         _menuCard(
-                          title: "Start Reading",
+                          title: "படிக்கத் தொடங்கு",
                           icon: Icons.menu_book,
                           onTap: () {
                             _openReader(0);
                           },
                         ),
                         _menuCard(
-                          title: "Browse by Groups",
+                          title: "குழு வாரியாகப் பார்க்க",
                           icon: Icons.view_list,
                           onTap: _openGroupBrowser,
                         ),
                         _menuCard(
-                          title: "Jump to Number",
+                          title: "எண்ணுக்குச் செல்ல",
                           icon: Icons.pin,
                           onTap: _jumpToPraise,
                         ),
@@ -454,6 +507,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ],
         ),
       ),
+        ),
     );
   }
 }

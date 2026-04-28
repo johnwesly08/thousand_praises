@@ -1,22 +1,32 @@
 import 'package:flutter/material.dart';
 import 'features/home/home_screen.dart';
+import 'core/theme/app_theme.dart';
+import 'core/services/settings_service.dart';
 
-void main() {
-  runApp(const ThousandPraiseApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final isDarkMode = await SettingsService.getDarkMode();
+
+  runApp(ThousandPraiseApp(isDarkMode: isDarkMode));
 }
 
 class ThousandPraiseApp extends StatelessWidget {
-  const ThousandPraiseApp({super.key});
+  final bool isDarkMode;
+
+  const ThousandPraiseApp({super.key, required this.isDarkMode});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Thousand Praises',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: false,
-        fontFamily: 'NotoSerifTamil',
-      ),
+
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+
+      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+
       home: const HomeScreen(),
     );
   }
